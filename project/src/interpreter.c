@@ -21,6 +21,7 @@ int help();
 int quit();
 int set(char *var, char *value);
 int print(char *var);
+int echo(char *token);
 int source(char *script);
 int badcommandFileDoesNotExist();
 
@@ -59,6 +60,12 @@ int interpreter(char *command_args[], int args_size) {
             return badcommand();
         return print(command_args[1]);
 
+    } else if (strcmp(command_args[0], "echo") == 0) {
+        // echo takes exactly one token (echo + token)
+        if (args_size != 2)
+            return badcommand();
+        return echo(command_args[1]);
+
     } else if (strcmp(command_args[0], "source") == 0) {
         if (args_size != 2)
             return badcommand();
@@ -76,6 +83,7 @@ help			Displays all the commands\n \
 quit			Exits / terminates the shell with “Bye!”\n \
 set VAR STRING		Assigns a value to shell memory\n \
 print VAR		Displays the STRING assigned to VAR\n \
+echo STRING		Displays STRING or value of $VAR from shell memory\n \
 source SCRIPT.TXT	Executes the file SCRIPT.TXT\n ";
     printf("%s\n", help_string);
     return 0;
@@ -103,6 +111,27 @@ int set(char *var, char *value) {
 int print(char *var) {
     printf("%s\n", mem_get_value(var));
     return 0;
+}
+
+/* Echo: display one token. If token is $VAR, look up VAR in shell memory
+   and print its value (or a blank line if not found). Otherwise print the token. */
+int echo(char *token) {
+    if (token[0] == '$') {
+        // Variable expansion: $VAR -> value from shell memory
+        char *var_name = token + 1;
+        char *value = mem_get_value(var_name);
+        if (strcmp(value, "Variable does not exist") == 0) {
+            printf("\n");
+        } else {
+            printf("%s\n", value);
+            free(value);  // mem_get_value returns strdup when found
+        }
+        return 0;
+    } else {
+        // Plain token: print as-is
+        printf("%s\n", token);
+        return 0;
+    }
 }
 
 int source(char *script) {

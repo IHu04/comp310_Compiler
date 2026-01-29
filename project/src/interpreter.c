@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include "shellmemory.h"
 #include "shell.h"
 
@@ -22,6 +23,7 @@ int quit();
 int set(char *var, char *value);
 int print(char *var);
 int echo(char *token);
+int my_ls(void);
 int source(char *script);
 int badcommandFileDoesNotExist();
 
@@ -66,6 +68,12 @@ int interpreter(char *command_args[], int args_size) {
             return badcommand();
         return echo(command_args[1]);
 
+    } else if (strcmp(command_args[0], "my_ls") == 0) {
+        /* no arguments — just list the current directory */
+        if (args_size != 1)
+            return badcommand();
+        return my_ls();
+
     } else if (strcmp(command_args[0], "source") == 0) {
         if (args_size != 2)
             return badcommand();
@@ -84,6 +92,7 @@ quit			Exits / terminates the shell with “Bye!”\n \
 set VAR STRING		Assigns a value to shell memory\n \
 print VAR		Displays the STRING assigned to VAR\n \
 echo STRING		Displays STRING or value of $VAR from shell memory\n \
+my_ls			Lists files and directories in current directory (alphabetical)\n \
 source SCRIPT.TXT	Executes the file SCRIPT.TXT\n ";
     printf("%s\n", help_string);
     return 0;
@@ -132,6 +141,39 @@ int echo(char *token) {
         printf("%s\n", token);
         return 0;
     }
+}
+
+/* compare numbers before letters, uppercase before same lowercase, alphabetical */
+static int my_ls_compare(const void *a, const void *b) {
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+/*
+ * my_ls — list everything in the current directory.
+ * We only show names: files and dirs appear as names only, we don’t go into
+ * subdirectories. Each name on its own line, sorted alphabetically. We include
+ * . and .. since readdir gives them to us like any other entry.
+ */
+int my_ls(void) {
+    DIR *dir = opendir(".");
+    if (dir == NULL)
+        return 1;
+
+    /* collect all names (we need copies because readdir reuses its buffer) */
+    char *names[256];
+    int count = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL)
+        names[count++] = strdup(entry->d_name);
+    closedir(dir);
+
+    /* sort then print one per line */
+    qsort(names, count, sizeof(char *), my_ls_compare);
+    for (int i = 0; i < count; i++) {
+        printf("%s\n", names[i]);
+        free(names[i]);
+    }
+    return 0;
 }
 
 int source(char *script) {

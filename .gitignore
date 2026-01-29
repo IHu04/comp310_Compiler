@@ -1,0 +1,3 @@
+project/src/mysh
+project/src/*.o
+**/*.o

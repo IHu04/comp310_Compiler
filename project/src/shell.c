@@ -41,28 +41,88 @@ int main(int argc, char *argv[]) {
 }
 
 int wordEnding(char c) {
-    // You may want to add ';' to this at some point,
-    // or you may want to find a different way to implement chains.
     return c == '\0' || c == '\n' || c == ' ';
 }
 
-int parseInput(char inp[]) {
-    char tmp[200], *words[100];                            
+// Parse a single command segment (without semicolons) into words and execute it
+static int parseCommand(char *cmd) {
+    char tmp[200], *words[100];
     int ix = 0, w = 0;
     int wordlen;
     int errorCode;
-    for (ix = 0; inp[ix] == ' ' && ix < 1000; ix++); // skip white spaces
-    while (inp[ix] != '\n' && inp[ix] != '\0' && ix < 1000) {
+    
+    // Skip leading spaces
+    for (ix = 0; cmd[ix] == ' ' && ix < 1000; ix++);
+    
+    // Parse words
+    while (cmd[ix] != '\n' && cmd[ix] != '\0' && cmd[ix] != ';' && ix < 1000) {
         // extract a word
-        for (wordlen = 0; !wordEnding(inp[ix]) && ix < 1000; ix++, wordlen++) {
-            tmp[wordlen] = inp[ix];                        
+        for (wordlen = 0; !wordEnding(cmd[ix]) && cmd[ix] != ';' && ix < 1000; ix++, wordlen++) {
+            tmp[wordlen] = cmd[ix];
         }
         tmp[wordlen] = '\0';
-        words[w] = strdup(tmp);
-        w++;
-        if (inp[ix] == '\0') break;
-        ix++; 
+        if (wordlen > 0) {
+            words[w] = strdup(tmp);
+            w++;
+        }
+        if (cmd[ix] == '\0' || cmd[ix] == ';') break;
+        ix++;
     }
+    
+    if (w == 0) {
+        return 0; // Empty command, skip
+    }
+    
     errorCode = interpreter(words, w);
+    
+    // Free allocated words
+    for (int i = 0; i < w; i++) {
+        free(words[i]);
+    }
+    
+    return errorCode;
+}
+
+int parseInput(char inp[]) {
+    char segments[10][1000];
+    int seg_count = 0;
+    int seg_start = 0;
+    int errorCode = 0;
+    
+    // Split input by semicolons
+    for (int i = 0; inp[i] != '\0' && i < 1000 && seg_count < 10; i++) {
+        if (inp[i] == ';') {
+            // Copy segment
+            int len = i - seg_start;
+            if (len >= 0 && len < 1000) {
+                strncpy(segments[seg_count], inp + seg_start, len);
+                segments[seg_count][len] = '\0';
+                seg_count++;
+            }
+            seg_start = i + 1;
+        }
+    }
+    
+    // Add the last segment (after last semicolon or if no semicolons)
+    if (seg_start < 1000) {
+        int len = 0;
+        for (int i = seg_start; inp[i] != '\0' && inp[i] != '\n' && i < 1000; i++) {
+            len++;
+        }
+        if (len >= 0 && len < 1000) {
+            strncpy(segments[seg_count], inp + seg_start, len);
+            segments[seg_count][len] = '\0';
+            seg_count++;
+        }
+    }
+    
+    // Execute each command segment
+    for (int i = 0; i < seg_count; i++) {
+        errorCode = parseCommand(segments[i]);
+        if (errorCode != 0) {
+            break; // Stop on error
+        }
+    }
+    
     return errorCode;
 }

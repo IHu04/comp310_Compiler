@@ -3,6 +3,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include "shellmemory.h"
 #include "shell.h"
@@ -36,12 +37,24 @@ int badcommandFileDoesNotExist();
 int interpreter(char *command_args[], int args_size) {
     int i;
 
-    if (args_size < 1 || args_size > MAX_ARGS_SIZE) {
+    if (args_size < 1) {
         return badcommand();
     }
 
     for (i = 0; i < args_size; i++) {   // terminate args at newlines
         command_args[i][strcspn(command_args[i], "\r\n")] = 0;
+    }
+
+    // Handle run command separately (allows variable args)
+    if (strcmp(command_args[0], "run") == 0) {
+        if (args_size < 2)
+            return badcommand();
+        return run(command_args, args_size);
+    }
+
+    // Other commands have fixed arg counts
+    if (args_size > MAX_ARGS_SIZE) {
+        return badcommand();
     }
 
     if (strcmp(command_args[0], "help") == 0) {
@@ -252,6 +265,35 @@ int my_cd(char *dirname) {
         return 1;
     }
     return 0;
+}
+
+// Execute external command using fork-exec-wait
+int run(char *command_args[], int args_size) {
+    pid_t pid = fork();
+    
+    if (pid < 0) {
+        return 1; // Fork failed
+    }
+    
+    if (pid == 0) {
+        // Child process: execute the command
+        // command_args[1] is the command, command_args[2..args_size-1] are arguments
+        // execvp needs null-terminated array
+        char *argv[100];
+        for (int i = 1; i < args_size; i++) {
+            argv[i - 1] = command_args[i];
+        }
+        argv[args_size - 1] = NULL;
+        
+        execvp(command_args[1], argv);
+        // If execvp returns, it failed
+        exit(1);
+    } else {
+        // Parent process: wait for child
+        int status;
+        wait(&status);
+        return WEXITSTATUS(status);
+    }
 }
 
 int source(char *script) {

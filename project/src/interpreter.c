@@ -3,6 +3,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "shellmemory.h"
 #include "shell.h"
 
@@ -26,6 +27,8 @@ int print(char *var);
 int echo(char *token);
 int my_ls(void);
 int my_mkdir(char *dirname);
+int my_touch(char *filename);
+int my_cd(char *dirname);
 int source(char *script);
 int badcommandFileDoesNotExist();
 
@@ -101,6 +104,8 @@ print VAR		Displays the STRING assigned to VAR\n \
 echo STRING		Displays STRING or value of $VAR from shell memory\n \
 my_ls			Lists files and directories in current directory (alphabetical)\n \
 my_mkdir DIRNAME	Creates a new directory (dirname or $VAR from shell memory)\n \
+my_touch FILENAME	Creates a new empty file\n \
+my_cd DIRNAME		Changes current directory\n \
 source SCRIPT.TXT	Executes the file SCRIPT.TXT\n ";
     printf("%s\n", help_string);
     return 0;
@@ -219,6 +224,33 @@ int my_mkdir(char *dirname) {
     }
     if (name_to_use != dirname)
         free(name_to_use);
+    return 0;
+}
+
+// Create an empty file: filename must be alphanumeric.
+int my_touch(char *filename) {
+    if (!is_single_alnum_token(filename)) {
+        return badcommand();
+    }
+    
+    FILE *f = fopen(filename, "w");
+    if (f == NULL) {
+        return 1;
+    }
+    fclose(f);
+    return 0;
+}
+
+// Change directory: dirname must be alphanumeric. If directory doesn't exist, print error.
+int my_cd(char *dirname) {
+    if (!is_single_alnum_token(dirname)) {
+        return badcommand();
+    }
+    
+    if (chdir(dirname) != 0) {
+        printf("Bad command: my_cd\n");
+        return 1;
+    }
     return 0;
 }
 

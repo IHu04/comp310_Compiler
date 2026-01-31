@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <errno.h>
 #include "shellmemory.h"
 #include "shell.h"
 
@@ -31,7 +33,24 @@ int my_mkdir(char *dirname);
 int my_touch(char *filename);
 int my_cd(char *dirname);
 int source(char *script);
+int run(char *command_args[], int args_size);
 int badcommandFileDoesNotExist();
+
+static void trim_in_place(char *s) {
+    if (!s) return;
+
+    // leading
+    char *p = s;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (p != s) memmove(s, p, strlen(p) + 1);
+
+    // trailing
+    size_t n = strlen(s);
+    while (n > 0 && isspace((unsigned char)s[n - 1])) {
+        s[n - 1] = '\0';
+        n--;
+    }
+}
 
 // Interpret commands and their arguments
 int interpreter(char *command_args[], int args_size) {
@@ -41,8 +60,26 @@ int interpreter(char *command_args[], int args_size) {
         return badcommand();
     }
 
-    for (i = 0; i < args_size; i++) {   // terminate args at newlines
-        command_args[i][strcspn(command_args[i], "\r\n")] = 0;
+    for (i = 0; i < args_size; i++) {   // strip \r\n
+        command_args[i][strcspn(command_args[i], "\r\n")] = '\0';
+    }
+
+    // Trim each token with isspace(), then compact to remove empty strings
+    for (i = 0; i < args_size; i++) {
+        trim_in_place(command_args[i]);
+    }
+    {
+        int w = 0;
+        for (int r = 0; r < args_size; r++) {
+            if (command_args[r] == NULL) continue;
+            if (command_args[r][0] == '\0') continue;
+            command_args[w++] = command_args[r];
+        }
+        args_size = w;
+    }
+
+    if (args_size < 1) {
+        return badcommand();
     }
 
     // Handle run command separately (allows variable args)
@@ -96,6 +133,18 @@ int interpreter(char *command_args[], int args_size) {
         if (args_size != 2)
             return badcommand();
         return my_mkdir(command_args[1]);
+
+    } else if (strcmp(command_args[0], "my_touch") == 0) {
+        if (args_size != 2)
+            return badcommand();
+        return my_touch(command_args[1]);
+
+    } else if (strcmp(command_args[0], "my_cd") == 0) {
+        if (args_size != 2) {
+            printf("Bad command: my_cd\n");
+            return 1;
+        }
+        return my_cd(command_args[1]);
 
     } else if (strcmp(command_args[0], "source") == 0) {
         if (args_size != 2)
@@ -231,6 +280,12 @@ int my_mkdir(char *dirname) {
 
     // Create directory with given name (0755 = rwxr-xr-x)
     if (mkdir(name_to_use, 0755) != 0) {
+        if (errno == EEXIST) {
+            /* Directory already exist, treat as success so chained commands continue */
+            if (name_to_use != dirname)
+                free(name_to_use);
+            return 0;
+        }
         if (name_to_use != dirname)
             free(name_to_use);
         return 1;
@@ -257,9 +312,9 @@ int my_touch(char *filename) {
 // Change directory: dirname must be alphanumeric. If directory doesn't exist, print error.
 int my_cd(char *dirname) {
     if (!is_single_alnum_token(dirname)) {
-        return badcommand();
+        printf("Bad command: my_cd\n");
+        return 1;
     }
-    
     if (chdir(dirname) != 0) {
         printf("Bad command: my_cd\n");
         return 1;

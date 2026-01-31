@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> 
+#include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include "shell.h"
 #include "interpreter.h"
@@ -11,6 +12,7 @@ int parseInput(char ui[]);
 // Start of everything
 int main(int argc, char *argv[]) {
     printf("Shell version 1.5 created Dec 2025\n");
+    fflush(stdout);
 
     char prompt = '$';  				// Shell prompt
     char userInput[MAX_USER_INPUT];		// user's input stored here
@@ -42,6 +44,22 @@ int main(int argc, char *argv[]) {
 
 int wordEnding(char c) {
     return c == '\0' || c == '\n' || c == ' ';
+}
+
+// Trim leading/trailing whitespace (and \r\n) in place; return 1 if non-empty after trim.
+static int trimSegment(char *s, int max) {
+    if (!s || max <= 0) return 0;
+    char *p = s;
+    while (p - s < max && *p && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' || isspace((unsigned char)*p)))
+        p++;
+    if (p != s)
+        memmove(s, p, strlen(p) + 1);
+    size_t n = strlen(s);
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' || s[n - 1] == '\r' || s[n - 1] == '\n' || isspace((unsigned char)s[n - 1]))) {
+        s[n - 1] = '\0';
+        n--;
+    }
+    return (n > 0);
 }
 
 // Parse a single command segment (without semicolons) into words and execute it
@@ -88,7 +106,10 @@ int parseInput(char inp[]) {
     int seg_count = 0;
     int seg_start = 0;
     int errorCode = 0;
-    
+
+    // Normalize line: strip \r\n so splitting and length are correct
+    inp[strcspn(inp, "\r\n")] = '\0';
+
     // Split input by semicolons
     for (int i = 0; inp[i] != '\0' && i < 1000 && seg_count < 10; i++) {
         if (inp[i] == ';') {
@@ -116,12 +137,13 @@ int parseInput(char inp[]) {
         }
     }
     
-    // Execute each command segment
+    // Trim each segment, skip empty, then parse and execute
     for (int i = 0; i < seg_count; i++) {
+        if (!trimSegment(segments[i], 1000))
+            continue;
         errorCode = parseCommand(segments[i]);
-        if (errorCode != 0) {
-            break; // Stop on error
-        }
+        if (errorCode != 0)
+            break;
     }
     
     return errorCode;

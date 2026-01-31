@@ -124,7 +124,7 @@ int interpreter(char *command_args[], int args_size) {
         return echo(command_args[1]);
 
     } else if (strcmp(command_args[0], "my_ls") == 0) {
-        // no arguments — just list the current directory
+        // no arguments just list the current directory
         if (args_size != 1)
             return badcommand();
         return my_ls();
@@ -197,21 +197,20 @@ int print(char *var) {
     return 0;
 }
 
-// Echo: print the token, or the value of $VAR from shell memory (blank line if not set).
+// Echo prints the token, or the value of $VAR from shell memory (blank line if not set).
 int echo(char *token) {
     if (token[0] == '$') {
-        // Token is $varname — look up variable in shell memory
+        // Token is $varname look up variable in shell memory
         char *var_name = token + 1;
         char *value = mem_get_value(var_name);
         if (strcmp(value, "Variable does not exist") == 0) {
             printf("\n");
         } else {
             printf("%s\n", value);
-            free(value);  // strdup'd by mem_get_value
+            free(value);  // strdup by mem_get_value
         }
         return 0;
     } else {
-        // Plain string — print it as-is
         printf("%s\n", token);
         return 0;
     }
@@ -258,7 +257,7 @@ static int is_single_alnum_token(const char *s) {
     return 1;
 }
 
-// Create a directory: dirname is the name, or $varname (then we use that variable's value if single alnum).
+// Create a directory, dirname is the name, or $varname (then we use that variable's value if single alnum).
 int my_mkdir(char *dirname) {
     char *name_to_use = dirname;
 
@@ -295,7 +294,7 @@ int my_mkdir(char *dirname) {
     return 0;
 }
 
-// Create an empty file: filename must be alphanumeric.
+// Create an empty file, filename must be alphanumeric.
 int my_touch(char *filename) {
     if (!is_single_alnum_token(filename)) {
         return badcommand();
@@ -309,7 +308,7 @@ int my_touch(char *filename) {
     return 0;
 }
 
-// Change directory: dirname must be alphanumeric. If directory doesn't exist, print error.
+// Change directory, dirname must be alphanumeric. If directory doesn't exist, print error.
 int my_cd(char *dirname) {
     if (!is_single_alnum_token(dirname)) {
         printf("Bad command: my_cd\n");
@@ -331,7 +330,7 @@ int run(char *command_args[], int args_size) {
     }
     
     if (pid == 0) {
-        // Child process: execute the command
+        // Child process execute the command
         // command_args[1] is the command, command_args[2..args_size-1] are arguments
         // execvp needs null-terminated array
         char *argv[100];
@@ -344,7 +343,7 @@ int run(char *command_args[], int args_size) {
         // If execvp returns, it failed
         exit(1);
     } else {
-        // Parent process: wait for child
+        // Parent process wait for child
         int status;
         wait(&status);
         return WEXITSTATUS(status);
